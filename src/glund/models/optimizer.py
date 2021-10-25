@@ -1,6 +1,6 @@
 # This file is part of gLund by S. Carrazza and F. A. Dreyer
 
-from keras.optimizers import Adam, RMSprop, SGD, Adagrad
+from tensorflow.keras.optimizers import Adam, RMSprop, SGD, Adagrad
 
 #----------------------------------------------------------------------
 def build_optimizer(hps):

@@ -3,7 +3,7 @@
 """This script allows for the generation of new samples from a trained model"""
 
 from glund.read_data import Jets
-from glund.JetTree import JetTree, LundImage, xval, yval
+from glund.JetTree import JetTree, LundImage
 from glund.preprocess import Averager
 from glund.model import load_model_and_preprocessor
 import numpy as np
