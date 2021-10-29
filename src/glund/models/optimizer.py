@@ -1,6 +1,6 @@
 # This file is part of gLund by S. Carrazza and F. A. Dreyer
 
-from tensorflow.keras.optimizers import Adam, RMSprop, SGD, Adagrad
+from tensorflow.keras.optimizers import Adam, RMSprop, SGD, Adagrad, Adadelta
 
 #----------------------------------------------------------------------
 def build_optimizer(hps):
@@ -24,6 +24,9 @@ def build_optimizer(hps):
     elif hps['optimizer'] == 'Adagrad':
         opt = Adagrad(lr=hps['learning_rate'],
                       decay=hps['opt_decay'] if 'opt_decay' in hps else 0.0)
+    elif hps['optimizer'] == 'Adadelta':
+        opt = Adagrad(lr=hps['learning_rate'],
+                      decay=hps['opt_decay'] if 'opt_decay' in hps else 0.0)                  
     else:
         raise Exception('optimizer: invalid optimizer option')
 

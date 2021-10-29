@@ -7,6 +7,7 @@ from glund.models.dcgan import DCGAN
 from glund.models.wgan_gp import WGANGP
 from glund.models.wgan import WGAN
 from glund.models.vae import VAE
+from glund.models.qgan import QGAN
 from glund.models.aae import AdversarialAutoencoder
 from glund.preprocess import load_preprocessor
 import yaml
@@ -40,6 +41,9 @@ def build_model(setup, length=None):
     elif input_model == 'aae':
         print('[+] Setting up AAE')
         model = AdversarialAutoencoder(setup, length=length)
+    elif input_model == 'qgan':
+        print('[+] Setting up QGAN')
+        model = QGAN(setup, length=length)
     else:
         raise Exception('build_model: invalid model choice')
     return model

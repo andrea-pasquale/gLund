@@ -55,7 +55,7 @@ def build_and_train_model(setup):
     print('[+] Training model')
     K.clear_session()
     if setup['model'] not in ('gan', 'dcgan', 'wgan', 'wgangp', 'vae',
-                              'aae', 'bgan', 'lsgan'):
+                              'aae', 'bgan', 'lsgan', 'qgan'):
         raise ValueError('Invalid input: choose one model at a time.')
 
     # read in the data set
@@ -66,7 +66,7 @@ def build_and_train_model(setup):
         # mnist data and training the model on this.
         (img_data, _), (_, _) = mnist.load_data()
         # Rescale -1 to 1
-        if setup['model'] is not 'vae':
+        if setup['model'] != 'vae':
             img_data = (img_data.astype(np.float32) - 127.5) / 127.5
         else:
             img_data = img_data.astype('float32') / 255
