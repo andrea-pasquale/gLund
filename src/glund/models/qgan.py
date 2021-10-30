@@ -237,6 +237,3 @@ class QGAN():
     #------------------------------------------------------------------------
     def description(self):
         return 'QGAN with length=%i, latent_dim=%i' % (self.length, self.latent_dim)
-
-
-if __name__ == '__main__':
