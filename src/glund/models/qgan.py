@@ -145,7 +145,7 @@ class QGAN():
         self.d_loss = []
         self.g_loss = []
 
-        initial_params = tf.Variable(np.random.uniform(-0.15, 0.15, 10*self.layers*self.nqubits + 2*self.nqubits))
+        initial_params = tf.Variable(np.random.uniform(0, 2*np.pi, 10*self.layers*self.nqubits + 2*self.nqubits))
         half_batch_size = int(batch_size / 2)
 
         # create quantum generator
