@@ -5,174 +5,169 @@ os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 # train a quantum-classical generative adversarial network on LHC data
 import numpy as np
 from glund.models.optimizer import build_optimizer
-from tensorflow.keras.models import Sequential, Model 
-from tensorflow.keras.layers import Dense, LeakyReLU, Conv2D, Dropout, ZeroPadding2D, Flatten, BatchNormalization, Input
-from qibo import gates, hamiltonians, models, set_backend, set_threads
+from glund.models.lsgan import MinibatchDiscrimination
+from tensorflow.keras.models import Sequential, Model
+from tensorflow.keras.layers import Dense, Conv2D, Dropout, Reshape, LeakyReLU, Flatten, Input
+from qibo import gates, models, set_backend, callbacks
 
 set_backend('tensorflow')
-
-# helper functions
-
-def hamiltonian1():
-    id = [[1, 0], [0, 1]]
-    m0 = hamiltonians.Z(1).matrix  # no numpy=True argument
-    m0 = np.kron(id, m0)
-    ham = hamiltonians.Hamiltonian(2, m0)
-    return ham
-    
-def hamiltonian2():
-    id = [[1, 0], [0, 1]]
-    m0 = hamiltonians.Z(1).matrix # no numpy= True argument
-    m0 = np.kron(m0, id)
-    ham = hamiltonians.Hamiltonian(2, m0)
-    return ham
-
-def define_cost_gan(params, discriminator, latent_dim, samples, circuit, nqubits, layers, hamiltonian1, hamiltonian2):
-    # generate fake samples
-    x_fake, y_fake = generate_fake_images(params, latent_dim, samples, circuit, nqubits, layers, hamiltonian1, hamiltonian2)
-    # create inverted labels for the fake samples
-    y_fake = np.ones((samples, 1))
-    # evaluate discriminator on fake examples
-    disc_output = discriminator(x_fake)
-    loss = tf.keras.losses.binary_crossentropy(y_fake, disc_output)
-    loss = tf.reduce_mean(loss)
-    return loss
-
-def set_params(circuit, params, x_input, i, nqubits, layers, latent_dim):
-    p = []
-    index = 0
-    noise = 0
-    for l in range(layers):
-        for q in range(nqubits):
-            p.append(params[index]*x_input[noise][i] + params[index+1])
-            index+=2
-            noise=(noise+1)%latent_dim
-            p.append(params[index]*x_input[noise][i] + params[index+1])
-            index+=2
-            noise=(noise+1)%latent_dim
-        if l==1 or l==5 or l==9 or l==13 or l==17:
-            p.append(params[index]*x_input[noise][i] + params[index+1])
-            index+=2
-            noise=(noise+1)%latent_dim
-        if l==3 or l==7 or l==11 or l==15 or l==19:
-            p.append(params[index]*x_input[noise][i] + params[index+1])
-            index+=2
-            noise=(noise+1)%latent_dim
-    for q in range(nqubits):
-        p.append(params[index]*x_input[noise][i] + params[index+1])
-        index+=2
-        noise=(noise+1)%latent_dim
-    circuit.set_parameters(p)
- 
-# generate real images 
-def generate_real_images(X_train, batch_size):
-    # generate samples from the distribution
-    idx = np.random.randint(0, X_train.shape[0], batch_size)
-    imgs = X_train[idx]
-    # generate class labels
-    y = np.ones((batch_size, 1))
-    return imgs, y
-
-# generate points in latent space as input for the generator
-def generate_noise(latent_dim, batch_size):
-    noise = np.random.normal(0, 1, (batch_size, latent_dim))
-    return noise
-
-# use the generator to generate fake examples, with class labels
-def generate_fake_images(circuit, params, latent_dim, batch_size, nqubits, layers, hamiltonian1, hamiltonian2):
-    # generate points in latent space
-    x_input = generate_noise(latent_dim, batch_size)
-    x_input = np.transpose(x_input)
-    # generator outputs
-    X1 = []
-    X2 = []
-    # quantum generator circuit
-    for i in range(batch_size):
-        set_params(circuit, params, x_input, i, nqubits, layers, latent_dim)
-        circuit_execute = circuit.execute()
-        X1.append(hamiltonian1.expectation(circuit_execute))
-        X2.append(hamiltonian2.expectation(circuit_execute))
-    # shape array
-    X = tf.stack((X1, X2), axis=1)
-    # create class labels
-    y = np.zeros((batch_size, 1))
-    return X, y
 
 class QGAN():
 
     #------------------------------------------------------------------------
-    def __init__(self, hps, layers, nqubits, length=28*28,):
+    def __init__(self, hps, length=28*28):
         self.length = length
         self.shape  = (self.length,)
         self.latent_dim = hps['latdim']
-        self.layers = layers
-        self.nqubits = nqubits
+        self.layers = hps['layers']
+        self.nqubits = hps['nqubits']
 
-        opt = build_optimizer(hps)
+        self.opt = build_optimizer(hps)
 
         self.discriminator = self.build_discriminator(units=hps['nn_units_d'],
-                                                      alpha=hps['nn_alpha'],
-                                                      momentum=hps['nn_momentum_d'],
-                                                      dropout=hps['nn_dropout'])
+                                                      alpha=hps['nn_alpha_d'])
+        self.discriminator.compile(loss='binary_crossentropy', optimizer=self.opt, metrics=['accuracy'])
 
-        self.discriminator.compile(loss='binary_crossentropy',
-                                   optimizer=opt,
-                                   metrics=['accuracy'])
 
-        self.circuit = self.build_circuit(nqubits, layers)
+        # self.circuit = self.build_circuit(self.nqubits, self.layers)
 
-        self.params = tf.Variable(np.random.uniform(-0.15, 0.15, 4*self.layers*self.nqubits + 2*self.nqubits + 2*self.layers))
+        # params = tf.Variable(np.random.uniform(-0.15, 0.15, 5*self.layers*self.nqubits + self.nqubits))
 
-    # discriminator in dcgan
-    def build_discriminator(self, units=32, alpha=0.2, momentum=0.8, dropout=0.25):
 
+    # discriminator
+    def build_discriminator(self, units=256, alpha=0.2):
+        """The GAN discriminator"""
         model = Sequential()
-
-        model.add(Conv2D(units, kernel_size=3, strides=2, input_shape=self.img_shape, padding="same"))
+        model.add(Dense(units*2, input_shape=self.shape))
         model.add(LeakyReLU(alpha=alpha))
-        model.add(Dropout(dropout))
-        model.add(Conv2D(units*2, kernel_size=3, strides=2, padding="same"))
-        model.add(ZeroPadding2D(padding=((0,1),(0,1))))
-        model.add(BatchNormalization(momentum=momentum))
+        model.add(Dense(units))
         model.add(LeakyReLU(alpha=alpha))
-        model.add(Dropout(dropout))
-        model.add(Conv2D(units*4, kernel_size=3, strides=2, padding="same"))
-        model.add(BatchNormalization(momentum=momentum))
-        model.add(LeakyReLU(alpha=alpha))
-        model.add(Dropout(dropout))
-        model.add(Conv2D(units*8, kernel_size=3, strides=1, padding="same"))
-        model.add(BatchNormalization(momentum=momentum))
-        model.add(LeakyReLU(alpha=alpha))
-        model.add(Dropout(dropout))
-        model.add(Flatten())
         model.add(Dense(1, activation='sigmoid'))
-
         model.summary()
+        return model
 
-        img = Input(shape=self.img_shape)
-        validity = model(img)
+    def generate_latent_points(self, batch_size):
+        """Generate points in latent space as input for the quantum generator."""
+        # generate points in the latent space
+        x_input = np.random.randn(self.latent_dim * batch_size)
+        # reshape into a batch of inputs for the network
+        x_input = x_input.reshape(batch_size, self.latent_dim)
+        return x_input
 
-        return Model(img, validity)
+    def _discriminator_loss(self, real_image, fake_image, fake_image_prob):
+        # Compute the discriminator loss based on cross entropy by considering both loss from real and fake output
+        real_loss = tf.keras.losses.BinaryCrossentropy(from_logits=True)(tf.ones_like(real_image), real_image)
+        fake_loss = tf.tensordot(self.__cross_entropy_list(tf.zeros_like(fake_image), fake_image), fake_image_prob, 1)
+        total_loss = (real_loss + fake_loss) / 2
+        return total_loss
 
-    def build_circuit(self):
+    # use the generator to generate fake examples, with class labels
+    def generate_fake_images(self, params, batch_size, circuit):
+        # generate points in latent space
+        x_input = self.generate_latent_points(batch_size)
+        x_input = np.transpose(x_input)
+
+        def generate_basis(nqubits=self.nqubits):
+            basis = []
+            for i in range(2**nqubits):
+                test = np.zeros(2**nqubits,dtype=np.complex128)
+                test[i] = 1
+                basis.append(test)
+            return np.array(basis)
+
+        basis = generate_basis()
+        overlaps = [callbacks.Overlap(i) for i in basis]
+    
+        generated_images = []
+        
+        for i in range(batch_size):
+            self.set_params(params, circuit, x_input, i)
+            circuit.execute()
+            probabilities = [ i(circuit.final_state) for i in overlaps]
+            normalized = 2 * (np.array(probabilities) - 0.5)
+            generated_images.append(normalized)
+
+        X = np.array(generated_images)
+        y = np.zeros((batch_size, 1))
+
+        return X, y
+
+    def define_cost_gan(self, params, discriminator, batch_size, circuit):
+        """Define the combined generator and discriminator model, for updating the generator."""
+        # generate fake samples
+        x_fake, y_fake = self.generate_fake_images(params, batch_size, circuit)
+        # create inverted labels for the fake samples
+        y_fake = np.ones((batch_size, 1))
+        #print(y_fake)
+        # evaluate discriminator on fake examples
+        disc_output = discriminator(x_fake)
+        #print(y_fake, disc_output)
+        loss = tf.keras.losses.binary_crossentropy(y_fake, disc_output)
+        loss = tf.reduce_mean(loss)
+
+        return loss
+
+    def set_params(self, params, circuit, x_input, i):
+        """Set the parameters for the quantum generator circuit."""
+        p = []
+        index = 0
+        noise = 0
+        for l in range(self.layers):
+            for q in range(self.nqubits):
+                p.append(params[index]*x_input[noise][i] + params[index+1])
+                index+=2
+                noise=(noise+1)%self.latent_dim
+                p.append(params[index]*x_input[noise][i] + params[index+1])
+                index+=2
+                p.append(params[index]*x_input[noise][i] + params[index+1])
+                index+=2
+                noise=(noise+1)%self.latent_dim
+                p.append(params[index]*x_input[noise][i] + params[index+1])
+                index+=2
+                noise=(noise+1)%self.latent_dim
+            for i in range(0, self.nqubits-1):
+                p.append(params[index]*x_input[noise][i] + params[index+1])
+                index+=2
+                noise=(noise+1)%self.latent_dim
+            p.append(params[index]*x_input[noise][i] + params[index+1])
+            index+=2
+            noise=(noise+1)%self.latent_dim
+        for q in range(self.nqubits):
+            p.append(params[index]*x_input[noise][i] + params[index+1])
+            index+=2
+            noise=(noise+1)%self.latent_dim
+        circuit.set_parameters(p)
+
+    def train(self,X_train, epochs, batch_size=128):
+
+        # generate real images 
+        def generate_real_images(X_train, batch_size):
+            # generate samples from the distribution
+            idx = np.random.randint(X_train.shape[0], size=batch_size)
+            imgs = X_train[idx]
+            # generate class labels
+            y = np.ones((batch_size, 1))
+            return imgs, y
+
+        self.d_loss = []
+        self.g_loss = []
+
+        initial_params = tf.Variable(np.random.uniform(-0.15, 0.15, 10*self.layers*self.nqubits + 2*self.nqubits))
+        half_batch_size = int(batch_size / 2)
+
+        # create quantum generator
         circuit = models.Circuit(self.nqubits)
         for l in range(self.layers):
             for q in range(self.nqubits):
                 circuit.add(gates.RY(q, 0))
                 circuit.add(gates.RZ(q, 0))
-            if l==1 or l==5 or l==9 or l==13 or l==17:
-                circuit.add(gates.CRY(0, 1, 0))
-            if l==3 or l==7 or l==11 or l==15 or l==19:
-                circuit.add(gates.CRY(1, 0, 0))
+                circuit.add(gates.RY(q, 0))
+                circuit.add(gates.RZ(q, 0))
+            for i in range(0, self.nqubits-1):
+                circuit.add(gates.CRY(i, i+1, 0))
+            circuit.add(gates.CRY(self.nqubits-1, 0, 0))
         for q in range(self.nqubits):
             circuit.add(gates.RY(q, 0))
-
-        return circuit
-
-    def train(self,X_train, epochs, batch_size=128):
-
-        self.d_losses = []
-        self. g_losses = []
 
         # manually enumerate epochs
         for epoch in range(epochs):
@@ -180,27 +175,26 @@ class QGAN():
             # ---------------------
             #  Train Discriminator
             # ---------------------
-
             # prepare real samples
-            x_real, y_real = generate_real_images(X_train, batch_size)
+            x_real, y_real = generate_real_images(X_train, half_batch_size)
             # prepare fake examples
-            x_fake, y_fake = generate_fake_images(self.circuit, self.params, self.latent_dim, batch_size, self.nqubits, self.layers, hamiltonian1, hamiltonian2)
+            x_fake, y_fake = self.generate_fake_images(initial_params, half_batch_size, circuit)
             # update discriminator
             d_loss_real = self.discriminator.train_on_batch(x_real, y_real)
             d_loss_fake = self.discriminator.train_on_batch(x_fake, y_fake)
-            d_loss = 0.5 * np.add(d_loss_real, d_loss_fake)
-            self.d_losses.append((d_loss_real + d_loss_fake)/2)
+            self.d_loss.append(0.5 * np.add(d_loss_real, d_loss_fake))
             # ---------------------
             #  Train Generator
             # ---------------------
-
             with tf.GradientTape() as tape:
-                loss = define_cost_gan(self.params, self.discriminator, self.latent_dim, batch_size,
-                                       self.circuit, self.nqubits, self.layers, hamiltonian1, hamiltonian2)
-                grads = tape.gradient(loss, self.params)
+                loss = self.define_cost_gan(initial_params, self.discriminator, batch_size, circuit)
+                #print(tape.watched_variables())
+            # print(initial_params)
+            grads = tape.gradient(loss, initial_params)
+            print(grads)
+            self.opt.apply_gradients([(grads, initial_params)])
 
-            self.opt.apply_gradients([(grads, self.params)])
-            self.g_losses = loss
+            self.g_loss.append(loss)
            
             
             if epoch%10==0:
@@ -209,10 +203,9 @@ class QGAN():
 
             
     # -------------------------------------------------
-    def generate(self, nev):
+    def generate(self, circuit,nev):
         
-        noise, images = generate_fake_images(self.circuit, self.params, self.latent_dim, nev,
-                                             self.nqubits, self.layers, hamiltonian1, hamiltonian2)
+        _, images = self.generate_fake_images(nev, circuit)
         return images
 
     #-----------------------------------------------------
@@ -229,10 +222,10 @@ class QGAN():
         # self.discriminator.save_weights('%s/discriminator.h5'%folder)
         # personalized save file
 
-        np.savetxt(f"PARAMS_LundJet_{self.nqubits}_{self.latent_dim}_{self.layers}"%folder, [self.params.numpy()], newline='')
+        np.savetxt(f"PARAMS_LundJet_{self.nqubits}_{self.latent_dim}_{self.layers}"%folder, [params.numpy()], newline='')
         np.savetxt(f"dloss_LundJet_{self.nqubits}_{self.latent_dim}_{self.layers}"%folder, [self.d_loss], newline='')
         np.savetxt(f"gloss_LundJet_{self.nqubits}_{self.latent_dim}_{self.layers}"%folder, [self.g_loss], newline='')
-        self.discriminator.save_weights(f"discriminator_LundJet_{self.nqubits}_{self.atent_dim}_{layers}.h5"%folder)
+        self.discriminator.save_weights(f"discriminator_LundJet_{self.nqubits}_{self.atent_dim}_{self.layers}.h5"%folder)
 
     #------------------------------------------------------------------------
     def description(self):

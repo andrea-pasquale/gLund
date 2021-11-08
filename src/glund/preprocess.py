@@ -9,7 +9,7 @@ import pickle
 
 #----------------------------------------------------------------------
 def build_preprocessor(setup):
-    flat_input = setup['model'] in ('gan', 'vae', 'bgan', 'aae', 'lsgan')
+    flat_input = setup['model'] in ('gan', 'vae', 'bgan', 'aae', 'lsgan', 'qgan')
     scaler = setup['scaler'] if 'scaler' in setup else None
     pixel_by_pixel = setup['scaler_pxl_by_pxl'] if 'scaler_pxl_by_pxl' in setup else None
     if setup['pca']:

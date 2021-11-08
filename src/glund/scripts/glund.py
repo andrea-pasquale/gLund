@@ -71,6 +71,13 @@ def build_and_train_model(setup):
         else:
             img_data = img_data.astype('float32') / 255
         img_data = np.expand_dims(img_data, axis=3)
+    elif setup['data'] == 'digits':
+        print('[+] Loading sklearn data')
+        from sklearn.datasets import load_digits
+        img_data = load_digits().images
+        # Rescale -1 to 1
+        img_data = (img_data.astype(np.float32) - 8.) / 8.
+        img_data = np.expand_dims(img_data, axis=3)
     else:
         # load in the jets from file, and create an array of lund images
         print('[+] Reading jet data from file')
@@ -85,7 +92,7 @@ def build_and_train_model(setup):
 
     avg = Averager(setup['navg'])
     img_train = avg.transform(img_data)
-    
+
     # set up a preprocessing pipeline
     preprocess = build_preprocessor(setup)
     
