@@ -74,7 +74,7 @@ def build_and_train_model(setup):
     elif setup['data'] == 'digits':
         print('[+] Loading sklearn data')
         from sklearn.datasets import load_digits
-        img_data = load_digits().images
+        img_data = load_digits(n_class=1).images
         # Rescale -1 to 1
         img_data = (img_data.astype(np.float32) - 8.) / 8.
         img_data = np.expand_dims(img_data, axis=3)
