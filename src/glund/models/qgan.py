@@ -54,13 +54,6 @@ class QGAN():
         x_input = x_input.reshape(batch_size, self.latent_dim)
         return x_input
 
-    def _discriminator_loss(self, real_image, fake_image, fake_image_prob):
-        # Compute the discriminator loss based on cross entropy by considering both loss from real and fake output
-        real_loss = tf.keras.losses.BinaryCrossentropy(from_logits=True)(tf.ones_like(real_image), real_image)
-        fake_loss = tf.tensordot(self.__cross_entropy_list(tf.zeros_like(fake_image), fake_image), fake_image_prob, 1)
-        total_loss = (real_loss + fake_loss) / 2
-        return total_loss
-
     # use the generator to generate fake examples, with class labels
     def generate_fake_images(self, params, batch_size, circuit):
         # generate points in latent space
