@@ -8,6 +8,7 @@ from glund.models.optimizer import build_optimizer
 from glund.models.lsgan import MinibatchDiscrimination
 from tensorflow.keras.models import Sequential, Model
 from tensorflow.keras.layers import Dense, Conv2D, Dropout, Reshape, LeakyReLU, Flatten, Input
+from scipy.optimize import minimize
 from qibo import gates, models, set_backend, callbacks
 
 set_backend('tensorflow')
@@ -91,12 +92,14 @@ class QGAN():
         x_fake, y_fake = self.generate_fake_images(params, batch_size, circuit)
         # create inverted labels for the fake samples
         y_fake = np.ones((batch_size, 1))
-        #print(y_fake)
+        #print(x_fake.shape)
         # evaluate discriminator on fake examples
         disc_output = discriminator(x_fake)
+        #print(disc_output)
         #print(y_fake, disc_output)
         loss = tf.keras.losses.binary_crossentropy(y_fake, disc_output)
         loss = tf.reduce_mean(loss)
+        # loss = loss.numpy()
 
         return loss
 
@@ -133,6 +136,7 @@ class QGAN():
 
     def train(self,X_train, epochs, batch_size=128):
 
+        self.batch_size = batch_size
         # generate real images 
         def generate_real_images(X_train, batch_size):
             # generate samples from the distribution
@@ -162,6 +166,7 @@ class QGAN():
         for q in range(self.nqubits):
             circuit.add(gates.RY(q, 0))
 
+        init = np.random.uniform(0, 2*np.pi, 10*self.layers*self.nqubits + 2*self.nqubits)
         # manually enumerate epochs
         for epoch in range(epochs):
 
@@ -173,21 +178,33 @@ class QGAN():
             # prepare fake examples
             x_fake, y_fake = self.generate_fake_images(initial_params, half_batch_size, circuit)
             # update discriminator
-            d_loss_real = self.discriminator.train_on_batch(x_real, y_real)
-            d_loss_fake = self.discriminator.train_on_batch(x_fake, y_fake)
-            self.d_loss.append(0.5 * np.add(d_loss_real, d_loss_fake))
+            d_loss_real, _ = self.discriminator.train_on_batch(x_real, y_real)
+            d_loss_fake, _ = self.discriminator.train_on_batch(x_fake, y_fake)
+            self.d_loss.append((d_loss_real + d_loss_fake)/2)
             # ---------------------
             #  Train Generator
             # ---------------------
-            with tf.GradientTape() as tape:
-                loss = self.define_cost_gan(initial_params, self.discriminator, batch_size, circuit)
+            #with tf.GradientTape() as tape:
+            #    loss = self.define_cost_gan(initial_params, self.discriminator, self.batch_size, circuit)
                 #print(tape.watched_variables())
             # print(initial_params)
-            grads = tape.gradient(loss, initial_params)
-            print(grads)
-            self.opt.apply_gradients([(grads, initial_params)])
+            #vars = initial_params
+            #grads = tape.gradient(loss, vars)
+            #print("grads", grads)
+            #print("initial_params", initial_params)
+            #self.opt.apply_gradients([(grads, initial_params)])
 
-            self.g_loss.append(loss)
+            # Try scipy minimizer
+            #print(initial_params)
+            #loss = self.define_cost_gan(initial_params, self.discriminator, batch_size, circuit)
+            #print(initial_params)
+            #print(self.define_cost_gan(initial_params, self.discriminator, batch_size, circuit))
+            res = minimize(self.define_cost_gan, init, args=(self.discriminator, batch_size, circuit))
+            print(res)
+            # print()
+           
+
+            # self.g_loss.append(loss)
            
             
             if epoch%10==0:
