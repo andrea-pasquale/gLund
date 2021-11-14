@@ -11,17 +11,17 @@ from numpy.random import randn
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import Adadelta
 from tensorflow.keras.layers import Dense, Conv2D, Dropout, Reshape, LeakyReLU, Flatten
-from qibo import gates, hamiltonians, models, set_backend, set_threads, callbacks
+from qibo import gates, hamiltonians, models, set_backend, set_threads
 import argparse
 
 set_backend('tensorflow')
-# set_threads(4)
+set_threads(4)
 
 # define the standalone discriminator model
-def define_discriminator(n_inputs=3, alpha=0.2, dropout=0.2):
+def define_discriminator(n_inputs=8, alpha=0.2, dropout=0.2):
     model = Sequential()
         
-    model.add(Dense(200, use_bias=False, input_dim=64))
+    model.add(Dense(200, use_bias=False, input_dim=n_inputs))
     model.add(Reshape((10,10,2)))
     
     model.add(Conv2D(64, kernel_size=3, strides=1, padding='same', kernel_initializer='glorot_normal'))
@@ -92,16 +92,22 @@ def set_params(circuit, params, x_input, i, nqubits, layers, latent_dim):
 
 def generate_training_real_samples(samples):
   # generate training samples from the distribution
-    #s = []
-    #mean = [0, 0, 0]
-    #cov = [[0.5, 0.1, 0.25], [0.5, 0.25, 0.1], [0.5, 0.5, 0.1]]        
-    #x, y, z = np.random.multivariate_normal(mean, cov, samples).T/4
-    #s1 = np.reshape(x, (samples,1))
-    #s2 = np.reshape(y, (samples,1))
-    #s3 = np.reshape(z, (samples,1))
-    #s = np.hstack((s1,s2,s3))
-    x = np.random.normal(0,0.5,samples*64)
-    s = x.reshape(samples,64) 
+#    samples = 10
+#    s = []
+#    mean = [0, 0, 0]
+#    cov = [[0.5, 0.1, 0.25], [0.5, 0.25, 0.1], [0.5, 0.5, 0.1]]        
+#    x, y, z = np.random.multivariate_normal(mean, cov, samples).T/4
+#    s1 = np.reshape(x, (samples,1))
+#    s2 = np.reshape(y, (samples,1))
+#    s3 = np.reshape(z, (samples,1))
+#    s = np.hstack((s1,s2,s3))
+#    print(s)
+    
+    x = abs(np.random.normal(0,0.5,samples*8))
+    s = x.reshape(samples,8) 
+#    print('Real: ',s)
+    
+    
     return s
  
 # generate real samples with class labels
@@ -127,33 +133,35 @@ def generate_fake_samples(params, latent_dim, samples, circuit, nqubits, layers,
     x_input = generate_latent_points(latent_dim, samples)
     x_input = np.transpose(x_input)
     # generator outputs
-    #X1 = []
-    #X2 = []
-    #X3 = []
+    X1 = []
+    X2 = []
+    X3 = []
+    X4 = []
+    X5 = []
+    X6 = []
+    X7 = []
+    X8 = []
+#    samples=10
     # quantum generator circuit
-    def generate_basis(nqubits=nqubits):
-        basis = []
-        for i in range(2**nqubits):
-            test = np.zeros(2**nqubits,dtype=np.complex128)
-            test[i] = 1
-            basis.append(test)
-        return np.array(basis)
-
-    basis = generate_basis()
-    overlaps = [callbacks.Overlap(i) for i in basis]
-    
-    generated_images = []
     for i in range(samples):
         set_params(circuit, params, x_input, i, nqubits, layers, latent_dim)
         circuit_execute = circuit.execute()
-        probabilities = [ i(circuit.final_state) for i in overlaps]
-        normalized = 2 * (np.array(probabilities) - 0.5)
-        generated_images.append(normalized)
-    #    X1.append(hamiltonian1.expectation(circuit_execute))
-    #    X2.append(hamiltonian2.expectation(circuit_execute))
-    #    X3.append(hamiltonian3.expectation(circuit_execute))
+        max_val = max(abs(circuit_execute.state(numpy=True)))
+#        X1.append(hamiltonian1.expectation(circuit_execute))
+#        X2.append(hamiltonian2.expectation(circuit_execute))
+#        X3.append(hamiltonian3.expectation(circuit_execute))
+        X1.append(abs(circuit_execute.state()[0])/max_val)
+        X2.append(abs(circuit_execute.state()[1])/max_val)
+        X3.append(abs(circuit_execute.state()[2])/max_val)
+        X4.append(abs(circuit_execute.state()[3])/max_val)
+        X5.append(abs(circuit_execute.state()[4])/max_val)
+        X6.append(abs(circuit_execute.state()[5])/max_val)
+        X7.append(abs(circuit_execute.state()[6])/max_val)
+        X8.append(abs(circuit_execute.state()[7])/max_val)
+    
     # shape array
-    X = np.array(generated_images)
+    X = tf.stack((X1, X2, X3, X4, X5, X6, X7, X8), axis=1)
+#    print('Fake: ',X)
     # create class labels
     y = np.zeros((samples, 1))
     return X, y
@@ -164,7 +172,7 @@ def train(d_model, latent_dim, layers, nqubits, training_samples, discriminator,
     g_loss = []
     # determine half the size of one batch, for updating the discriminator
     half_samples = int(samples / 2)
-    initial_params = tf.Variable(np.random.uniform(-0.15, 0.15, 4*layers*nqubits + 2*nqubits + 2*layers))
+    initial_params = tf.Variable(np.random.uniform(0, 2*np.pi, 4*layers*nqubits + 2*nqubits + 2*layers))
     optimizer = tf.optimizers.Adadelta(learning_rate=lr)
     # prepare real samples
     s = generate_training_real_samples(training_samples)
@@ -175,7 +183,6 @@ def train(d_model, latent_dim, layers, nqubits, training_samples, discriminator,
         # prepare fake examples
         x_fake, y_fake = generate_fake_samples(initial_params, latent_dim, half_samples, circuit, nqubits, layers, hamiltonian1, hamiltonian2, hamiltonian3)
         # update discriminator
-        
         d_loss_real, _ = d_model.train_on_batch(x_real, y_real)
         d_loss_fake, _ = d_model.train_on_batch(x_fake, y_fake)
         d_loss.append((d_loss_real + d_loss_fake)/2)
@@ -183,6 +190,7 @@ def train(d_model, latent_dim, layers, nqubits, training_samples, discriminator,
         with tf.GradientTape() as tape:
             loss = define_cost_gan(initial_params, d_model, latent_dim, samples, circuit, nqubits, layers, hamiltonian1, hamiltonian2, hamiltonian3)
         grads = tape.gradient(loss, initial_params)
+        print(grads)
         optimizer.apply_gradients([(grads, initial_params)])
         g_loss.append(loss)
         np.savetxt(f"PARAMS_3Dgaussian_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}", [initial_params.numpy()], newline='')
@@ -190,7 +198,6 @@ def train(d_model, latent_dim, layers, nqubits, training_samples, discriminator,
         np.savetxt(f"gloss_3Dgaussian_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}", [g_loss], newline='')
         # serialize weights to HDF5
         discriminator.save_weights(f"discriminator_3Dgaussian_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}.h5")
-        
 
 def main(latent_dim, layers, training_samples, n_epochs, batch_samples, lr):
     
@@ -217,7 +224,7 @@ def main(latent_dim, layers, training_samples, n_epochs, batch_samples, lr):
         return ham
     
     # number of qubits generator
-    nqubits = 6
+    nqubits = 3
     # create hamiltonians
     hamiltonian1 = hamiltonian1()
     hamiltonian2 = hamiltonian2()
@@ -245,8 +252,8 @@ def main(latent_dim, layers, training_samples, n_epochs, batch_samples, lr):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--latent_dim", default=3, type=int)
-    parser.add_argument("--layers", default=20, type=int)
-    parser.add_argument("--training_samples", default=10000, type=int)
+    parser.add_argument("--layers", default=2, type=int)
+    parser.add_argument("--training_samples", default=1000, type=int)
     parser.add_argument("--n_epochs", default=30000, type=int)
     parser.add_argument("--batch_samples", default=128, type=int)
     parser.add_argument("--lr", default=0.1, type=float)
