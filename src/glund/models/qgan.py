@@ -25,26 +25,35 @@ class QGAN():
 
         self.opt = build_optimizer(hps)
 
-        self.discriminator = self.build_discriminator(units=hps['nn_units_d'],
+        self.discriminator = self.build_discriminator(dropout=hps['nn_dropout'],
                                                       alpha=hps['nn_alpha_d'])
         self.discriminator.compile(loss='binary_crossentropy', optimizer=self.opt, metrics=['accuracy'])
 
 
-        # self.circuit = self.build_circuit(self.nqubits, self.layers)
-
-        # params = tf.Variable(np.random.uniform(-0.15, 0.15, 5*self.layers*self.nqubits + self.nqubits))
-
-
     # discriminator
-    def build_discriminator(self, units=256, alpha=0.2):
-        """The GAN discriminator"""
+    def build_discriminator(self, alpha=0.2, dropout=0.2):
         model = Sequential()
-        model.add(Dense(units*2, input_shape=self.shape))
+        
+        model.add(Dense(200, use_bias=False, input_dim=int(2**self.nqubits)))
+        model.add(Reshape((10,10,2)))
+    
+        model.add(Conv2D(64, kernel_size=3, strides=1, padding='same', kernel_initializer='glorot_normal'))
         model.add(LeakyReLU(alpha=alpha))
-        model.add(Dense(units))
+    
+        model.add(Conv2D(32, kernel_size=3, strides=1, padding='same', kernel_initializer='glorot_normal'))
         model.add(LeakyReLU(alpha=alpha))
+
+        model.add(Conv2D(16, kernel_size=3, strides=1, padding='same', kernel_initializer='glorot_normal'))
+        model.add(LeakyReLU(alpha=alpha))
+
+        model.add(Conv2D(8, kernel_size=3, strides=1, padding='same', kernel_initializer='glorot_normal'))
+
+        model.add(Flatten())
+        model.add(LeakyReLU(alpha=alpha))
+        model.add(Dropout(dropout)) 
+
         model.add(Dense(1, activation='sigmoid'))
-        model.summary()
+
         return model
 
     def generate_latent_points(self, batch_size):
@@ -61,27 +70,21 @@ class QGAN():
         x_input = self.generate_latent_points(batch_size)
         x_input = np.transpose(x_input)
 
-        def generate_basis(nqubits=self.nqubits):
-            basis = []
-            for i in range(2**nqubits):
-                test = np.zeros(2**nqubits,dtype=np.complex128)
-                test[i] = 1
-                basis.append(test)
-            return np.array(basis)
+        pxl = int(2**self.nqubits)
 
-        basis = generate_basis()
-        overlaps = [callbacks.Overlap(i) for i in basis]
-    
-        generated_images = []
-        
+        # generator outputs
+        X = []
+        for i in range(pxl):
+            X.append([])
+
         for i in range(batch_size):
             self.set_params(params, circuit, x_input, i)
-            circuit.execute()
-            probabilities = [ i(circuit.final_state) for i in overlaps]
-            normalized = 2 * (np.array(probabilities) - 0.5)
-            generated_images.append(normalized)
+            circuit_execute = circuit.execute()
+            max_val = max(abs(circuit.final_state.numpy()))
+            for ii in range(pxl):
+                X[ii].append(abs(circuit.final_state[ii])/max_val)
 
-        X = np.array(generated_images)
+        X = tf.stack([X[i] for i in range(len(X))], axis=1)
         y = np.zeros((batch_size, 1))
 
         return X, y
@@ -99,7 +102,6 @@ class QGAN():
         #print(y_fake, disc_output)
         loss = tf.keras.losses.binary_crossentropy(y_fake, disc_output)
         loss = tf.reduce_mean(loss)
-        # loss = loss.numpy()
 
         return loss
 
@@ -166,7 +168,6 @@ class QGAN():
         for q in range(self.nqubits):
             circuit.add(gates.RY(q, 0))
 
-        init = np.random.uniform(0, 2*np.pi, 10*self.layers*self.nqubits + 2*self.nqubits)
         # manually enumerate epochs
         for epoch in range(epochs):
 
@@ -178,44 +179,39 @@ class QGAN():
             # prepare fake examples
             x_fake, y_fake = self.generate_fake_images(initial_params, half_batch_size, circuit)
             # update discriminator
-            d_loss_real, _ = self.discriminator.train_on_batch(x_real, y_real)
-            d_loss_fake, _ = self.discriminator.train_on_batch(x_fake, y_fake)
-            self.d_loss.append((d_loss_real + d_loss_fake)/2)
+            d_loss_real = self.discriminator.train_on_batch(x_real, y_real)
+            d_loss_fake = self.discriminator.train_on_batch(x_fake, y_fake)
+            d_loss = 0.5 * np.add(d_loss_real, d_loss_fake)
             # ---------------------
             #  Train Generator
             # ---------------------
-            #with tf.GradientTape() as tape:
-            #    loss = self.define_cost_gan(initial_params, self.discriminator, self.batch_size, circuit)
-                #print(tape.watched_variables())
-            # print(initial_params)
-            #vars = initial_params
-            #grads = tape.gradient(loss, vars)
-            #print("grads", grads)
-            #print("initial_params", initial_params)
-            #self.opt.apply_gradients([(grads, initial_params)])
+            with tf.GradientTape() as tape:
+                loss = self.define_cost_gan(initial_params, self.discriminator, self.batch_size, circuit)
 
-            # Try scipy minimizer
-            #print(initial_params)
-            #loss = self.define_cost_gan(initial_params, self.discriminator, batch_size, circuit)
-            #print(initial_params)
-            #print(self.define_cost_gan(initial_params, self.discriminator, batch_size, circuit))
-            res = minimize(self.define_cost_gan, init, args=(self.discriminator, batch_size, circuit))
-            print(res)
-            # print()
-           
+            grads = tape.gradient(loss, initial_params)
+            print(grads)
+            self.opt.apply_gradients([(grads, initial_params)])
 
-            # self.g_loss.append(loss)
+            np.savetxt(f"PARAMS_digits_{self.nqubits}_{self.latent_dim}_{self.layers}", [initial_params.numpy()], newline='')
+            np.savetxt(f"dloss_digits_{self.nqubits}_{self.latent_dim}_{self.layers}", [d_loss], newline='')
+            np.savetxt(f"gloss_digits_{self.nqubits}_{self.latent_dim}_{self.layers}", [loss], newline='')
+
+            self.g_loss.append(loss)
            
             
             if epoch%10==0:
                 print ("%d [D loss: %f, acc.: %.2f%%] [G loss: %f]"
-                       % (epoch, self.d_loss[0], 100*self.d_loss[1], self.g_loss))
+                       % (epoch, d_loss[0], 100*d_loss[1], loss))
+
+        # after the training we store circuit and params for generate method
+        self.params = initial_params
+        self.circuit = circuit
 
             
     # -------------------------------------------------
-    def generate(self, circuit,nev):
+    def generate(self, nev):
         
-        _, images = self.generate_fake_images(nev, circuit)
+        images, _ = self.generate_fake_images(self.params, nev, self.circuit)
         return images
 
     #-----------------------------------------------------
@@ -232,10 +228,11 @@ class QGAN():
         # self.discriminator.save_weights('%s/discriminator.h5'%folder)
         # personalized save file
 
-        np.savetxt(f"PARAMS_LundJet_{self.nqubits}_{self.latent_dim}_{self.layers}"%folder, [params.numpy()], newline='')
-        np.savetxt(f"dloss_LundJet_{self.nqubits}_{self.latent_dim}_{self.layers}"%folder, [self.d_loss], newline='')
-        np.savetxt(f"gloss_LundJet_{self.nqubits}_{self.latent_dim}_{self.layers}"%folder, [self.g_loss], newline='')
-        self.discriminator.save_weights(f"discriminator_LundJet_{self.nqubits}_{self.atent_dim}_{self.layers}.h5"%folder)
+        #np.savetxt(f"PARAMS_LundJet_{self.nqubits}_{self.latent_dim}_{self.layers}"%folder, [params.numpy()], newline='')
+        #np.savetxt(f"dloss_LundJet_{self.nqubits}_{self.latent_dim}_{self.layers}"%folder, [self.d_loss], newline='')
+        #np.savetxt(f"gloss_LundJet_{self.nqubits}_{self.latent_dim}_{self.layers}"%folder, [self.g_loss], newline='')
+        #self.discriminator.save_weights(f"discriminator_LundJet_{self.nqubits}_{self.atent_dim}_{self.layers}.h5"%folder)
+        pass
 
     #------------------------------------------------------------------------
     def description(self):

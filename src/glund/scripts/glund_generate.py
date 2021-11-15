@@ -21,6 +21,13 @@ def plot_events_debug(gen_sample, preproc, datafile, setup, folder):
         # Rescale -1 to 1
         img_data = (img_data.astype(np.float32) - 127.5) / 127.5
         img_data = np.expand_dims(img_data, axis=3)
+    elif datafile == 'digits':
+        print('[+] Loading sklearn data')
+        from sklearn.datasets import load_digits
+        img_data = load_digits(n_class=1).images
+        # Rescale -1 to 1
+        img_data = (img_data.astype(np.float32) - 8.) / 8.
+        img_data = np.expand_dims(img_data, axis=3)
     else:
         reader=Jets(datafile, 5000)
         events=reader.values()

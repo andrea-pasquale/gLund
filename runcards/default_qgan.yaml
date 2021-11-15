@@ -32,16 +32,16 @@ scaler: minmax
 pca: false
 
 # Perform ZCA preprocessing
-zca: true
+zca: false
 
 # Number of pixel average
-navg: 20
+navg: 1
 
 # Optimizer parameters
 # options are: Adam, RMSprop, Adagrad, SGD
 optimizer: Adam
 learning_rate: 0.0002
-opt_decay: 0.000000008 # => 8e-9
+# opt_decay: 0.000000008 # => 8e-9
 
 # GAN architecture parameters
 nn_units_d: 256
@@ -49,6 +49,7 @@ nn_units_g: 256
 nn_alpha_d: 0.2
 nn_alpha_g: 0.2
 nn_momentum: 0.8
+nn_dropout: 0.2
 
 
 nqubits: 6
