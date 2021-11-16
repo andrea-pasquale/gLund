@@ -172,10 +172,10 @@ def train(d_model, latent_dim, layers, nqubits, training_samples, discriminator,
     for i in range(n_epochs):
         # prepare real samples
         x_real, y_real = generate_real_samples(s, half_samples)
-        print("x_real", x_real)
+        #print("x_real", x_real)
         # prepare fake examples
         x_fake, y_fake = generate_fake_samples(initial_params, latent_dim, half_samples, circuit, nqubits, layers,pixels)
-        print("x_fake", x_fake)
+        #print("x_fake", x_fake)
         # update discriminator
         d_loss_real, _ = d_model.train_on_batch(x_real, y_real)
         d_loss_fake, _ = d_model.train_on_batch(x_fake, y_fake)
@@ -187,12 +187,12 @@ def train(d_model, latent_dim, layers, nqubits, training_samples, discriminator,
         print("grads", grads)
         optimizer.apply_gradients([(grads, initial_params)])
         g_loss.append(loss)
-        np.savetxt(f"PARAMS_3Dgaussian_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}", [initial_params.numpy()], newline='')
-        np.savetxt(f"dloss_3Dgaussian_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}", [d_loss], newline='')
-        np.savetxt(f"gloss_3Dgaussian_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}", [g_loss], newline='')
+        np.savetxt(f"PARAMS_Handwritten-0-digit_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}", [initial_params.numpy()], newline='')
+        np.savetxt(f"dloss_Handwritten-0-digit_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}", [d_loss], newline='')
+        np.savetxt(f"gloss_Handwritten-0-digit_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}", [g_loss], newline='')
         # serialize weights to HDF5
-        discriminator.save_weights(f"discriminator_3Dgaussian_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}.h5")
-
+        discriminator.save_weights(f"discriminator_Handwritten-0-digit_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}.h5")
+        
 def main(latent_dim, layers, training_samples, n_epochs, batch_samples, lr, pixels, nqubits):
     
     # define hamiltonian to generate fake samples
@@ -247,7 +247,7 @@ if __name__ == "__main__":
     parser.add_argument("--latent_dim", default=3, type=int)
     parser.add_argument("--layers", default=1, type=int)
     parser.add_argument("--training_samples", default=100, type=int)
-    parser.add_argument("--n_epochs", default=10, type=int)
+    parser.add_argument("--n_epochs", default=10000, type=int)
     parser.add_argument("--batch_samples", default=128, type=int)
     parser.add_argument("--lr", default=0.1, type=float)
     parser.add_argument("--pixels", default=64, type=int)
