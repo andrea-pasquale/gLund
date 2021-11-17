@@ -69,20 +69,7 @@ def set_params(circuit, params, x_input, i, nqubits, layers, latent_dim):
             noise=(noise+1)%latent_dim
             p.append(params[index]*x_input[noise][i] + params[index+1])
             index+=2
-            noise=(noise+1)%latent_dim
-            p.append(params[index]*x_input[noise][i] + params[index+1])
-            index+=2
-            noise=(noise+1)%latent_dim
-            p.append(params[index]*x_input[noise][i] + params[index+1])
-            index+=2
-            noise=(noise+1)%latent_dim
-        for i in range(0, nqubits-1):
-            p.append(params[index]*x_input[noise][i] + params[index+1])
-            index+=2
-            noise=(noise+1)%latent_dim
-        p.append(params[index]*x_input[noise][i] + params[index+1])
-        index+=2
-        noise=(noise+1)%latent_dim
+            noise = (noise+1)%latent_dim
     for q in range(nqubits):
         p.append(params[index]*x_input[noise][i] + params[index+1])
         index+=2
@@ -165,7 +152,7 @@ def train(d_model, latent_dim, layers, nqubits, training_samples, discriminator,
     g_loss = []
     # determine half the size of one batch, for updating the discriminator
     half_samples = int(samples / 2)
-    initial_params = tf.Variable(np.random.uniform(-0.15, 0.15, 10*layers*nqubits + 2*nqubits))
+    initial_params = tf.Variable(np.random.uniform(0, 2*np.pi, 4*layers*nqubits + 2*nqubits))
     optimizer = tf.optimizers.Adadelta(learning_rate=lr)
     # prepare real samples
     s = generate_training_real_samples(training_samples)
@@ -229,12 +216,10 @@ def main(latent_dim, layers, training_samples, n_epochs, batch_samples, lr, pixe
     for l in range(layers):
         for q in range(nqubits):
             circuit.add(gates.RY(q, 0))
-            circuit.add(gates.RZ(q, 0))
             circuit.add(gates.RY(q, 0))
-            circuit.add(gates.RZ(q, 0))
         for i in range(0, nqubits-1):
-            circuit.add(gates.CRY(i, i+1, 0))
-        circuit.add(gates.CRY(nqubits-1, 0, 0))
+            circuit.add(gates.CZ(i, i+1))
+        circuit.add(gates.CZ(nqubits-1, 0))
     for q in range(nqubits):
         circuit.add(gates.RY(q, 0))
     # create classical discriminator
