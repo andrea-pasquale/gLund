@@ -11,7 +11,7 @@ def objective(trial):
     return build_and_train_model(lr_d=lr_d, lr=lr, batch_samples=batch_samples, n_epochs=n_epochs)
 
 study = optuna.create_study(study_name='qgan 8 digits images', direction='minimize')
-study.optimize(objective, n_trials=2, n_jobs=-1)
+study.optimize(objective, n_trials=100, n_jobs=-1)
 best_params = study.best_params
 with open('best_params.json', 'w') as fo:
     json.dump(best_params, fo)
