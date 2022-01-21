@@ -1,43 +1,30 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 import tensorflow as tf
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
-
-# train a quantum-classical generative adversarial network on LHC data
 import numpy as np
 from numpy.random import randn
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import Adadelta
 from tensorflow.keras.layers import Dense, Conv2D, Dropout, Reshape, LeakyReLU, Flatten
-from qibo import gates, hamiltonians, models, set_backend, set_threads
+from qibo import gates, models, set_backend
 import argparse
+
 
 set_backend('tensorflow')
 
 # define the standalone discriminator model
 def define_discriminator(n_inputs=64, alpha=0.2, dropout=0.2, lr=0.1):
-    model = Sequential()
-        
+    model = Sequential()     
     model.add(Dense(200, use_bias=False, input_dim=n_inputs))
-    model.add(Reshape((10,10,2)))
-    
+    model.add(Reshape((10,10,2)))  
     model.add(Conv2D(64, kernel_size=3, strides=1, padding='same', kernel_initializer='glorot_normal'))
     model.add(LeakyReLU(alpha=alpha))
-    
     model.add(Conv2D(32, kernel_size=3, strides=1, padding='same', kernel_initializer='glorot_normal'))
     model.add(LeakyReLU(alpha=alpha))
-
     model.add(Conv2D(16, kernel_size=3, strides=1, padding='same', kernel_initializer='glorot_normal'))
     model.add(LeakyReLU(alpha=alpha))
-
     model.add(Conv2D(8, kernel_size=3, strides=1, padding='same', kernel_initializer='glorot_normal'))
-
     model.add(Flatten())
     model.add(LeakyReLU(alpha=alpha))
     model.add(Dropout(dropout)) 
-
     model.add(Dense(1, activation='sigmoid'))
 
     # compile model
@@ -63,25 +50,25 @@ def set_params(circuit, params, x_input, i, nqubits, layers, latent_dim):
     noise = 0
     for l in range(layers):
         for q in range(nqubits):
-            p.append(params[index]*x_input[noise][i] + params[index+1])
-            index+=2
-            noise=(noise+1)%latent_dim
-            p.append(params[index]*x_input[noise][i] + params[index+1])
-            index+=2
-            noise = (noise+1)%latent_dim
+            p.append(params[index] * x_input[noise][i] + params[index+1])
+            index += 2
+            noise= (noise+1) % latent_dim
+            p.append(params[index] * x_input[noise][i] + params[index+1])
+            index += 2
+            noise = (noise+1) % latent_dim
     for q in range(nqubits):
-        p.append(params[index]*x_input[noise][i] + params[index+1])
-        index+=2
-        noise=(noise+1)%latent_dim
+        p.append(params[index] * x_input[noise][i] + params[index+1])
+        index += 2
+        noise= (noise+1) % latent_dim
     circuit.set_parameters(p)
 
 def generate_training_real_samples(samples):
     from sklearn.datasets import load_digits
     img_data = load_digits(n_class=1).images
     # Rescale 0 to 1
-    img_data = img_data.astype(np.float32)/16.
+    img_data = img_data.astype(np.float32) / 16.
     img_data = img_data[:samples]
-    return np.reshape(img_data,(img_data.shape[0],64))
+    return np.reshape(img_data, (img_data.shape[0], 64))
  
 # generate real samples with class labels
 def generate_real_samples(X_train, batch_size):
@@ -115,7 +102,7 @@ def generate_fake_samples(params, latent_dim, samples, circuit, nqubits, layers,
         circuit_execute = circuit.execute()
         max_val = max(abs(circuit.final_state.numpy())**2)
         for ii in range(pixels):
-                X[ii].append(abs(circuit.final_state[ii]**2)/max_val)
+                X[ii].append(abs(circuit.final_state[ii]**2) / max_val)
 
     # shape array
     X = tf.stack([X[i] for i in range(len(X))], axis=1)
@@ -124,7 +111,7 @@ def generate_fake_samples(params, latent_dim, samples, circuit, nqubits, layers,
     return X, y
 
 # train the generator and discriminator
-def train(d_model, latent_dim, layers, nqubits, training_samples, discriminator, circuit, n_epochs, samples, lr, pixels, folder, lr_d):
+def train(d_model, latent_dim, layers, nqubits, training_samples, discriminator, circuit, n_epochs, samples, lr, pixels, lr_d):
     d_loss = []
     g_loss = []
     # determine half the size of one batch, for updating the discriminator
@@ -137,10 +124,10 @@ def train(d_model, latent_dim, layers, nqubits, training_samples, discriminator,
     for i in range(n_epochs):
         # prepare real samples
         x_real, y_real = generate_real_samples(s, half_samples)
-        print("x_real", x_real)
+        #print("x_real", x_real)
         # prepare fake examples
         x_fake, y_fake = generate_fake_samples(initial_params, latent_dim, half_samples, circuit, nqubits, layers,pixels)
-        print("x_fake", x_fake)
+        #print("x_fake", x_fake)
         # update discriminator
         d_loss_real, _ = d_model.train_on_batch(x_real, y_real)
         d_loss_fake, _ = d_model.train_on_batch(x_fake, y_fake)
@@ -149,16 +136,17 @@ def train(d_model, latent_dim, layers, nqubits, training_samples, discriminator,
         with tf.GradientTape() as tape:
             loss = define_cost_gan(initial_params, d_model, latent_dim, samples, circuit, nqubits, layers, pixels)
         grads = tape.gradient(loss, initial_params)
-        print("grads", grads)
+        #print("grads", grads)
         optimizer.apply_gradients([(grads, initial_params)])
         g_loss.append(loss)
-        np.savetxt(f"{folder}/PARAMS_Handwritten-0-digit_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}", [initial_params.numpy()], newline='')
-        np.savetxt(f"{folder}/dloss_Handwritten-0-digit_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}", [d_loss], newline='')
-        np.savetxt(f"{folder}/gloss_Handwritten-0-digit_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}", [g_loss], newline='')
+        np.savetxt(f"PARAMS_Handwritten-0-digit_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}", [initial_params.numpy()], newline='')
+        np.savetxt(f"dloss_Handwritten-0-digit_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}", [d_loss], newline='')
+        np.savetxt(f"gloss_Handwritten-0-digit_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}", [g_loss], newline='')
         # serialize weights to HDF5
-        discriminator.save_weights(f"{folder}/discriminator_Handwritten-0-digit_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}.h5")
-        
-def main(latent_dim, layers, training_samples, n_epochs, batch_samples, lr, pixels, nqubits, lr_d, folder):
+        discriminator.save_weights(f"discriminator_Handwritten-0-digit_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}.h5")
+    return loss
+
+def build_and_train_model(lr_d=1e-2, lr=1e-2, n_epochs=10, batch_samples=10, latent_dim=3, layers=1, training_samples=100, pixels=64, nqubits=6):
     
     # number of qubits generator
     nqubits = nqubits
@@ -176,22 +164,4 @@ def main(latent_dim, layers, training_samples, n_epochs, batch_samples, lr, pixe
     # create classical discriminator
     discriminator = define_discriminator(n_inputs=pixels, lr=lr_d)
     # train model
-    train(discriminator, latent_dim, layers, nqubits, training_samples, discriminator, circuit, n_epochs, batch_samples, lr, pixels, folder, lr_d)
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--latent_dim", default=3, type=int)
-    parser.add_argument("--layers", default=1, type=int)
-    parser.add_argument("--training_samples", default=100, type=int)
-    parser.add_argument("--n_epochs", default=10000, type=int)
-    parser.add_argument("--batch_samples", default=10, type=int)
-    parser.add_argument("--lr", default=0.1, type=float)
-    parser.add_argument("--pixels", default=64, type=int)
-    parser.add_argument("--nqubits", default=6, type=int)
-    parser.add_argument("--folder", type=str)
-    parser.add_argument("--lr_d", default=0.1, type=float)
-
-
-    args = vars(parser.parse_args())
-    main(**args)
+    return train(discriminator, latent_dim, layers, nqubits, training_samples, discriminator, circuit, n_epochs, batch_samples, lr, pixels, lr_d)
