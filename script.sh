@@ -6,4 +6,4 @@
 #SBATCH --time=7-0:0
 #SBATCH --mem-per-cpu=1G
 
-python script.py
+srun python script.py
