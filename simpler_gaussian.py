@@ -143,7 +143,7 @@ def train(d_model, latent_dim, layers, nqubits, training_samples, discriminator,
         np.savetxt(f"dloss_Handwritten-0-digit_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}", [d_loss], newline='')
         np.savetxt(f"gloss_Handwritten-0-digit_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}", [g_loss], newline='')
         # serialize weights to HDF5
-        discriminator.save_weights(f"discriminator_Handwritten-0-digit_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}.h5")
+        #discriminator.save_weights(f"discriminator_Handwritten-0-digit_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}.h5")
     return loss
 
 def build_and_train_model(lr_d=1e-2, lr=1e-2, n_epochs=10, batch_samples=10, latent_dim=3, layers=1, training_samples=100, pixels=64, nqubits=6):

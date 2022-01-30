@@ -1,0 +1,56 @@
+[32m[I 2022-01-28 09:33:44,517][0m Using an existing study with name 'hyperopt2' instead of creating a new one.[0m
+hyperopt2
+2022-01-28 09:33:50.401201: W tensorflow/stream_executor/platform/default/dso_loader.cc:64] Could not load dynamic library 'libcudart.so.11.0'; dlerror: libcudart.so.11.0: cannot open shared object file: No such file or directory
+2022-01-28 09:33:50.401298: I tensorflow/stream_executor/cuda/cudart_stub.cc:29] Ignore above cudart dlerror if you do not have a GPU set up on your machine.
+2022-01-28 09:33:54.501480: W tensorflow/stream_executor/platform/default/dso_loader.cc:64] Could not load dynamic library 'libcuda.so.1'; dlerror: libcuda.so.1: cannot open shared object file: No such file or directory
+2022-01-28 09:33:54.501579: W tensorflow/stream_executor/cuda/cuda_driver.cc:269] failed call to cuInit: UNKNOWN ERROR (303)
+2022-01-28 09:33:54.501627: I tensorflow/stream_executor/cuda/cuda_diagnostics.cc:156] kernel driver does not appear to be running on this host (boltzmann): /proc/driver/nvidia/version does not exist
+2022-01-28 09:33:54.502668: I tensorflow/core/platform/cpu_feature_guard.cc:151] This TensorFlow binary is optimized with oneAPI Deep Neural Network Library (oneDNN) to use the following CPU instructions in performance-critical operations:  AVX2 FMA
+To enable them in other operations, rebuild TensorFlow with the appropriate compiler flags.
+[Qibo 0.1.7rc2.dev0|INFO|2022-01-28 09:33:54]: Using tensorflow backend on /device:CPU:0
+[Qibo 0.1.7rc2.dev0|WARNING|2022-01-28 09:33:54]: qibotf library was not found. `tf.einsum` will be used to apply gates. In order to install Qibo's high performance custom operators for TensorFlow please use `pip install qibotf`. Alternatively, consider installing the qibojit backend.
+[Qibo 0.1.7rc2.dev0|INFO|2022-01-28 09:33:55]: Using tensorflow backend on /device:CPU:0
+[33m[W 2022-01-29 12:22:38,551][0m Trial 12 failed because of the following error: _NotOkStatusException()[0m
+Traceback (most recent call last):
+  File "/home/andreapasquale/miniconda3/envs/glund/lib/python3.8/site-packages/optuna/study/_optimize.py", line 213, in _run_trial
+    value_or_values = func(trial)
+  File "script.py", line 9, in objective
+    return build_and_train_model(lr_d=lr_d, lr=lr, batch_samples=batch_samples, n_epochs=n_epochs)
+  File "/home/andreapasquale/gLund/simpler_gaussian.py", line 167, in build_and_train_model
+    return train(discriminator, latent_dim, layers, nqubits, training_samples, discriminator, circuit, n_epochs, batch_samples, lr, pixels, lr_d)
+  File "/home/andreapasquale/gLund/simpler_gaussian.py", line 132, in train
+    d_loss_real, _ = d_model.train_on_batch(x_real, y_real)
+  File "/home/andreapasquale/miniconda3/envs/glund/lib/python3.8/site-packages/keras/engine/training.py", line 1900, in train_on_batch
+    logs = self.train_function(iterator)
+  File "/home/andreapasquale/miniconda3/envs/glund/lib/python3.8/site-packages/tensorflow/python/util/traceback_utils.py", line 153, in error_handler
+    raise e.with_traceback(filtered_tb) from None
+  File "/home/andreapasquale/miniconda3/envs/glund/lib/python3.8/site-packages/tensorflow/python/eager/function.py", line 3294, in _cache_key
+    input_signature = pywrap_tfe.TFE_Py_EncodeArg(
+tensorflow.python.eager.core._NotOkStatusException: InvalidArgumentError: PyLong_AsSize_t failure
+Traceback (most recent call last):
+  File "script.py", line 14, in <module>
+    study.optimize(objective, n_trials=2)
+  File "/home/andreapasquale/miniconda3/envs/glund/lib/python3.8/site-packages/optuna/study/study.py", line 400, in optimize
+    _optimize(
+  File "/home/andreapasquale/miniconda3/envs/glund/lib/python3.8/site-packages/optuna/study/_optimize.py", line 66, in _optimize
+    _optimize_sequential(
+  File "/home/andreapasquale/miniconda3/envs/glund/lib/python3.8/site-packages/optuna/study/_optimize.py", line 163, in _optimize_sequential
+    trial = _run_trial(study, func, catch)
+  File "/home/andreapasquale/miniconda3/envs/glund/lib/python3.8/site-packages/optuna/study/_optimize.py", line 264, in _run_trial
+    raise func_err
+  File "/home/andreapasquale/miniconda3/envs/glund/lib/python3.8/site-packages/optuna/study/_optimize.py", line 213, in _run_trial
+    value_or_values = func(trial)
+  File "script.py", line 9, in objective
+    return build_and_train_model(lr_d=lr_d, lr=lr, batch_samples=batch_samples, n_epochs=n_epochs)
+  File "/home/andreapasquale/gLund/simpler_gaussian.py", line 167, in build_and_train_model
+    return train(discriminator, latent_dim, layers, nqubits, training_samples, discriminator, circuit, n_epochs, batch_samples, lr, pixels, lr_d)
+  File "/home/andreapasquale/gLund/simpler_gaussian.py", line 132, in train
+    d_loss_real, _ = d_model.train_on_batch(x_real, y_real)
+  File "/home/andreapasquale/miniconda3/envs/glund/lib/python3.8/site-packages/keras/engine/training.py", line 1900, in train_on_batch
+    logs = self.train_function(iterator)
+  File "/home/andreapasquale/miniconda3/envs/glund/lib/python3.8/site-packages/tensorflow/python/util/traceback_utils.py", line 153, in error_handler
+    raise e.with_traceback(filtered_tb) from None
+  File "/home/andreapasquale/miniconda3/envs/glund/lib/python3.8/site-packages/tensorflow/python/eager/function.py", line 3294, in _cache_key
+    input_signature = pywrap_tfe.TFE_Py_EncodeArg(
+tensorflow.python.eager.core._NotOkStatusException: InvalidArgumentError: PyLong_AsSize_t failure
+srun: error: boltzmann: task 0: Exited with exit code 1
