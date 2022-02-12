@@ -67,14 +67,17 @@ def set_params(circuit, params, x_input, i, nqubits, layers, latent_dim):
     circuit.set_parameters(p)
 
 def generate_training_real_samples(samples):
-    from scipy.io import loadmat
-    mat = loadmat('4x4MNIST_Train&Test/4x4MNIST_Train&Test/MNIST_Train_Nox4x4.mat')
-    img_data = mat['V']
-    # Rescale 0 to 1
-    img_data = img_data.astype(np.float32) / 255.
-    img_data = img_data[:samples]
-    return np.reshape(img_data, (img_data.shape[0], 16))
- 
+    data = np.load('dummy_dataset.npy')
+    data = data[:samples]
+    #if dataset == '4x4MNIST':
+    #    from scipy.io import loadmat
+    #    mat = loadmat('4x4MNIST_Train&Test/4x4MNIST_Train&Test/MNIST_Train_Nox4x4.mat')
+    #    img_data = mat['V']
+    #    # Rescale 0 to 1
+    #    img_data = img_data.astype(np.float32) / 255.
+    #    img_data = img_data[:samples]
+    #    return np.reshape(img_data, (img_data.shape[0], 16))
+    return np.reshape(data, (data.shape[0], 16))
 # generate real samples with class labels
 def generate_real_samples(X_train, batch_size):
     # generate samples from the distribution
@@ -104,10 +107,9 @@ def generate_fake_samples(params, latent_dim, samples, circuit, nqubits, layers,
     # quantum generator circuit
     for i in range(samples):
         set_params(circuit, params, x_input, i, nqubits, layers, latent_dim)
-        circuit_execute = circuit.execute()
-        max_val = max(abs(circuit.final_state.numpy())**2)
+        circuit()
         for ii in range(pixels):
-                X[ii].append(abs(circuit.final_state[ii]**2) / max_val)
+                X[ii].append(abs(circuit.final_state[ii]**2))
 
     # shape array
     X = tf.stack([X[i] for i in range(len(X))], axis=1)
@@ -142,12 +144,14 @@ def train(d_model, latent_dim, layers, nqubits, training_samples, discriminator,
         with tf.GradientTape() as tape:
             loss = define_cost_gan(initial_params, d_model, latent_dim, samples, circuit, nqubits, layers, pixels)
         grads = tape.gradient(loss, initial_params)
-        print("grads", grads)
         optimizer.apply_gradients([(grads, initial_params)])
         g_loss.append(loss)
-        np.savetxt(f"less_image_test1/PARAMS_4pxls_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}", [initial_params.numpy()], newline='')
-        np.savetxt(f"less_image_test1/dloss_4pxls_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}", [d_loss], newline='')
-        np.savetxt(f"less_image_test1/gloss_4pxls_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}", [g_loss], newline='')
+        np.savetxt(f"custom_dataset/PARAMS_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}", [initial_params.numpy()], newline='')
+        np.savetxt(f"custom_dataset/dloss_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}", [d_loss], newline='')
+        np.savetxt(f"custom_dataset/gloss_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}", [g_loss], newline='')
+        if i % 500 == 0:
+            with open(f"custom_dataset/ALL_PARAMS_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}", "ab") as f:
+                np.savetxt(f, [initial_params.numpy()])
         # serialize weights to HDF5
         #discriminator.save_weights(f"less_image_test/discriminator_4pxls_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}.h5")
     return loss
@@ -179,7 +183,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--latent_dim", default=6, type=int)
     parser.add_argument("--layers", default=1, type=int)
-    parser.add_argument("--training_samples", default=60000, type=int)
+    parser.add_argument("--training_samples", default=100, type=int)
     parser.add_argument("--n_epochs", default=20000, type=int)
     parser.add_argument("--batch_samples", default=32, type=int)
     parser.add_argument("--pixels", default=16, type=int)
