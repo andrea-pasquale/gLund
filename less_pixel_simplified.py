@@ -123,8 +123,7 @@ def train(d_model, latent_dim, layers, nqubits, training_samples, discriminator,
     g_loss = []
     # determine half the size of one batch, for updating the discriminator
     half_samples = int(samples / 2)
-    initial_params = tf.Variable(np.random.uniform(-0.15, 0.15, 5*layers*nqubits + 1*nqubits))
-    #initial_params = tf.Variable(np.random.uniform(0, 2*np.pi, 4*layers*nqubits + 2*nqubits))
+    initial_params = tf.Variable(np.random.uniform(-0.15, 0.15, 4*layers*nqubits + 2*nqubits))
     optimizer = tf.optimizers.Adadelta(learning_rate=lr)
     # prepare real samples
     s = generate_training_real_samples(training_samples)
@@ -184,7 +183,7 @@ if __name__ == "__main__":
     parser.add_argument("--latent_dim", default=6, type=int)
     parser.add_argument("--layers", default=1, type=int)
     parser.add_argument("--training_samples", default=100, type=int)
-    parser.add_argument("--n_epochs", default=20000, type=int)
+    parser.add_argument("--n_epochs", default=30000, type=int)
     parser.add_argument("--batch_samples", default=32, type=int)
     parser.add_argument("--pixels", default=16, type=int)
     parser.add_argument("--nqubits", default=4, type=int)
