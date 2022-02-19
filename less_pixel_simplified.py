@@ -66,18 +66,32 @@ def set_params(circuit, params, x_input, i, nqubits, layers, latent_dim):
         noise= (noise+1) % latent_dim
     circuit.set_parameters(p)
 
-def generate_training_real_samples(samples):
-    data = np.load('dummy_dataset.npy')
-    data = data[:samples]
-    #if dataset == '4x4MNIST':
-    #    from scipy.io import loadmat
-    #    mat = loadmat('4x4MNIST_Train&Test/4x4MNIST_Train&Test/MNIST_Train_Nox4x4.mat')
-    #    img_data = mat['V']
-    #    # Rescale 0 to 1
-    #    img_data = img_data.astype(np.float32) / 255.
-    #    img_data = img_data[:samples]
-    #    return np.reshape(img_data, (img_data.shape[0], 16))
-    return np.reshape(data, (data.shape[0], 16))
+def generate_training_real_samples(dataset, samples):
+    if dataset == 'dummy_dataset.npy':
+        pixels = 16
+        images = np.load('dummy_dataset.npy')
+        images = images[:samples]
+
+    elif dataset == '4x4MNIST':
+        from scipy.io import loadmat
+        pixels = 16
+        mat = loadmat('4x4MNIST_Train/4x4MNIST_Train/MNIST_Train_Nox4x4.mat')
+        images = mat['V'][:samples]
+    elif dataset == '8x8Digits':
+        from sklearn.datasets import load_digits
+        pixels = 64
+        images = load_digits(n_class=1).images
+        images = images[:samples]
+        images = images.astype(np.float32) / 16.
+    else:
+        return NotImplementedError("Unknown dataset")
+
+    # normalize each image:
+    images = np.array([i/sum(i.flatten()) for i in images])
+    # reshape
+    images = np.reshape(images, (images.shape[0], pixels))
+    return images, pixels
+
 # generate real samples with class labels
 def generate_real_samples(X_train, batch_size):
     # generate samples from the distribution
@@ -118,7 +132,7 @@ def generate_fake_samples(params, latent_dim, samples, circuit, nqubits, layers,
     return X, y
 
 # train the generator and discriminator
-def train(d_model, latent_dim, layers, nqubits, training_samples, discriminator, circuit, n_epochs, samples, lr, pixels, lr_d):
+def train(d_model, latent_dim, layers, nqubits, training_samples, circuit, n_epochs, samples, lr, lr_d, dataset, folder):
     d_loss = []
     g_loss = []
     # determine half the size of one batch, for updating the discriminator
@@ -126,7 +140,7 @@ def train(d_model, latent_dim, layers, nqubits, training_samples, discriminator,
     initial_params = tf.Variable(np.random.uniform(-0.15, 0.15, 4*layers*nqubits + 2*nqubits))
     optimizer = tf.optimizers.Adadelta(learning_rate=lr)
     # prepare real samples
-    s = generate_training_real_samples(training_samples)
+    s, pixels = generate_training_real_samples(dataset, training_samples)
     # manually enumerate epochs
     for i in range(n_epochs):
         # prepare real samples
@@ -145,17 +159,18 @@ def train(d_model, latent_dim, layers, nqubits, training_samples, discriminator,
         grads = tape.gradient(loss, initial_params)
         optimizer.apply_gradients([(grads, initial_params)])
         g_loss.append(loss)
-        np.savetxt(f"custom_dataset/PARAMS_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}", [initial_params.numpy()], newline='')
-        np.savetxt(f"custom_dataset/dloss_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}", [d_loss], newline='')
-        np.savetxt(f"custom_dataset/gloss_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}", [g_loss], newline='')
+        np.savetxt(f"{folder}/PARAMS_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}", [initial_params.numpy()], newline='')
+        np.savetxt(f"{folder}/dloss_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}", [d_loss], newline='')
+        np.savetxt(f"{folder}/gloss_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}", [g_loss], newline='')
         if i % 500 == 0:
-            with open(f"custom_dataset/ALL_PARAMS_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}", "ab") as f:
+            with open(f"{folder}/ALL_PARAMS_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}", "ab") as f:
                 np.savetxt(f, [initial_params.numpy()])
         # serialize weights to HDF5
         #discriminator.save_weights(f"less_image_test/discriminator_4pxls_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}.h5")
     return loss
 
-def build_and_train_model(lr_d=1e-2, lr=1e-2, n_epochs=10, batch_samples=10, latent_dim=10, layers=1, training_samples=200, pixels=16, nqubits=4):
+def build_and_train_model(lr_d=1e-2, lr=1e-2, n_epochs=10, batch_samples=10, latent_dim=10, layers=1,
+                          training_samples=200, pixels=16, nqubits=4, dataset=None, folder=None):
     
     # number of qubits generator
     nqubits = nqubits
@@ -176,19 +191,21 @@ def build_and_train_model(lr_d=1e-2, lr=1e-2, n_epochs=10, batch_samples=10, lat
     # create classical discriminator
     discriminator = define_discriminator(n_inputs=pixels, lr=lr_d)
     # train model
-    return train(discriminator, latent_dim, layers, nqubits, training_samples, discriminator, circuit, n_epochs, batch_samples, lr, pixels, lr_d)
+    return train(discriminator, latent_dim, layers, nqubits, training_samples, circuit, n_epochs, batch_samples, lr, lr_d, dataset, folder)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--latent_dim", default=6, type=int)
     parser.add_argument("--layers", default=1, type=int)
-    parser.add_argument("--training_samples", default=100, type=int)
-    parser.add_argument("--n_epochs", default=30000, type=int)
+    parser.add_argument("--training_samples", default=1000, type=int)
+    parser.add_argument("--n_epochs", default=20000, type=int)
     parser.add_argument("--batch_samples", default=32, type=int)
     parser.add_argument("--pixels", default=16, type=int)
     parser.add_argument("--nqubits", default=4, type=int)
-    parser.add_argument("--lr", default=1e-2, type=float)
+    parser.add_argument("--lr", default=1e-1, type=float)
     parser.add_argument("--lr_d", default=1e-2, type=float)
+    parser.add_argument("--dataset", default=None, type=str)
+    parser.add_argument("--folder", default=None, type=str)
 
     args = vars(parser.parse_args())
     build_and_train_model(**args)
