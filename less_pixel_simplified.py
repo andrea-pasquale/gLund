@@ -83,6 +83,12 @@ def generate_training_real_samples(dataset, samples):
         images = load_digits(n_class=1).images
         images = images[:samples]
         images = images.astype(np.float32) / 16.
+    elif dataset == 'MNIST':
+        from keras.datasets import mnist
+        (images, _), (_, _) = mnist.load_data()
+        pixels = 784
+        images = images[:samples]
+        images = images.astype(np.float32) / 255.
     else:
         return NotImplementedError("Unknown dataset")
 
@@ -195,16 +201,16 @@ def build_and_train_model(lr_d=1e-2, lr=1e-2, n_epochs=10, batch_samples=10, lat
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--latent_dim", default=6, type=int)
-    parser.add_argument("--layers", default=1, type=int)
+    parser.add_argument("--latent_dim", default=3, type=int)
+    parser.add_argument("--layers", default=3, type=int)
     parser.add_argument("--training_samples", default=1000, type=int)
-    parser.add_argument("--n_epochs", default=20000, type=int)
-    parser.add_argument("--batch_samples", default=32, type=int)
-    parser.add_argument("--pixels", default=16, type=int)
-    parser.add_argument("--nqubits", default=4, type=int)
-    parser.add_argument("--lr", default=1e-1, type=float)
+    parser.add_argument("--n_epochs", default=100, type=int)
+    parser.add_argument("--batch_samples", default=64, type=int)
+    parser.add_argument("--pixels", default=784, type=int)
+    parser.add_argument("--nqubits", default=10, type=int)
+    parser.add_argument("--lr", default=5e-1, type=float)
     parser.add_argument("--lr_d", default=1e-2, type=float)
-    parser.add_argument("--dataset", default=None, type=str)
+    parser.add_argument("--dataset", default="MNIST", type=str)
     parser.add_argument("--folder", default=None, type=str)
 
     args = vars(parser.parse_args())
