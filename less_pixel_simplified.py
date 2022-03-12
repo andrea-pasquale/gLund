@@ -229,11 +229,11 @@ def train(d_model, latent_dim, layers, nqubits, training_samples, circuit, n_epo
         grads = tape.gradient(loss, initial_params)
         optimizer.apply_gradients([(grads, initial_params)])
         g_loss.append(loss)
-        np.savetxt(f"{folder}/PARAMS_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}", [initial_params.numpy()], newline='')
-        np.savetxt(f"{folder}/dloss_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}", [d_loss], newline='')
-        np.savetxt(f"{folder}/gloss_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}", [g_loss], newline='')
+        np.savetxt(f"{folder}/PARAMS_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}_{avg}", [initial_params.numpy()], newline='')
+        np.savetxt(f"{folder}/dloss_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}_{avg}", [d_loss], newline='')
+        np.savetxt(f"{folder}/gloss_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}_{avg}", [g_loss], newline='')
         if i % 500 == 0:
-            with open(f"{folder}/ALL_PARAMS_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}", "ab") as f:
+            with open(f"{folder}/ALL_PARAMS_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}_{lr_d}_{avg}", "ab") as f:
                 np.savetxt(f, [initial_params.numpy()])
         # serialize weights to HDF5
         #discriminator.save_weights(f"less_image_test/discriminator_4pxls_{nqubits}_{latent_dim}_{layers}_{training_samples}_{samples}_{lr}.h5")
