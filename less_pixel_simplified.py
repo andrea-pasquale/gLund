@@ -13,6 +13,46 @@ import argparse
 
 set_backend('tensorflow')
 
+def generate_condition():
+    test = np.zeros(shape=(24,24))
+    for i in range(24):
+        for j in range(24):
+            if i in range(8) and j in range(24-8,24):
+                test[i][j] = True
+            else:
+                test[i][j] = False
+    return test
+
+class Averager:
+    """Combine images in batches"""
+
+    #----------------------------------------------------------------------
+    def __init__(self, navg):
+        self.navg = navg
+
+    #----------------------------------------------------------------------
+    def transform(self, data):
+        """
+        Transform a numpy array of images into an array of averaged
+        images of equal length.
+        """
+        batch_avg_img = np.zeros(data.shape)
+        for i in range(len(data)):
+            batch_avg_img[i] = \
+                np.average(data[np.random.choice(data.shape[0], self.navg,
+                                                 replace=False), :], axis=0)
+        return batch_avg_img
+
+    def inverse(self, data):
+        """
+        Sample an array of averaged images and return an array of physical images.
+        """
+        sampled_data = np.zeros(data.shape)
+        for i,v in np.ndenumerate(data):
+            if v >= np.random.uniform(0,1):
+                sampled_data[i]=1.0
+        return sampled_data
+
 # define the standalone discriminator model
 def define_discriminator(n_inputs=16, alpha=0.2, dropout=0.2, lr=0.1):
     model = Sequential()     
@@ -66,7 +106,7 @@ def set_params(circuit, params, x_input, i, nqubits, layers, latent_dim):
         noise= (noise+1) % latent_dim
     circuit.set_parameters(p)
 
-def generate_training_real_samples(dataset, samples):
+def generate_training_real_samples(dataset, samples, avg=1):
     if dataset == 'dummy_dataset.npy':
         pixels = 16
         images = np.load('dummy_dataset.npy')
@@ -89,13 +129,37 @@ def generate_training_real_samples(dataset, samples):
         pixels = 784
         images = images[:samples]
         images = images.astype(np.float32) / 255.
+    elif dataset == 'Lund':
+        images = np.load("reference_images.npy")
+        pixels = 512
+        images = images[:samples]
+        # rotation
+        images = np.array( [ i [::,::-1].T for i in images])
+        # average
+        averager = Averager(avg)
+        images = averager.transform(images)
+        condition = generate_condition()
+        reduced = []
+        for i in range(len(images)):
+            masked =  np.ma.masked_array(images[i], mask=False)
+            masked.mask = condition
+            reduced.append(np.ma.compressed(masked))
+
     else:
         return NotImplementedError("Unknown dataset")
 
-    # normalize each image:
-    images = np.array([i/sum(i.flatten()) for i in images])
-    # reshape
-    images = np.reshape(images, (images.shape[0], pixels))
+    if dataset == 'Lund':
+        #normalize each image:
+        reduced = np.array([i/sum(i.flatten()) for i in reduced])
+        # # # reshape
+        images = np.reshape(reduced, (reduced.shape[0], pixels))
+    else:
+        #normalize each image:
+        images = np.array([i/sum(i.flatten()) for i in images])
+        # # # reshape
+        images = np.reshape(images, (images.shape[0], pixels))
+
+
     return images, pixels
 
 # generate real samples with class labels
@@ -138,7 +202,7 @@ def generate_fake_samples(params, latent_dim, samples, circuit, nqubits, layers,
     return X, y
 
 # train the generator and discriminator
-def train(d_model, latent_dim, layers, nqubits, training_samples, circuit, n_epochs, samples, lr, lr_d, dataset, folder):
+def train(d_model, latent_dim, layers, nqubits, training_samples, circuit, n_epochs, samples, lr, lr_d, avg, dataset, folder):
     d_loss = []
     g_loss = []
     # determine half the size of one batch, for updating the discriminator
@@ -146,7 +210,7 @@ def train(d_model, latent_dim, layers, nqubits, training_samples, circuit, n_epo
     initial_params = tf.Variable(np.random.uniform(-0.15, 0.15, 4*layers*nqubits + 2*nqubits))
     optimizer = tf.optimizers.Adadelta(learning_rate=lr)
     # prepare real samples
-    s, pixels = generate_training_real_samples(dataset, training_samples)
+    s, pixels = generate_training_real_samples(dataset, training_samples, avg)
     # manually enumerate epochs
     for i in range(n_epochs):
         # prepare real samples
@@ -176,7 +240,7 @@ def train(d_model, latent_dim, layers, nqubits, training_samples, circuit, n_epo
     return loss
 
 def build_and_train_model(lr_d=1e-2, lr=1e-2, n_epochs=10, batch_samples=10, latent_dim=10, layers=1,
-                          training_samples=200, pixels=16, nqubits=4, dataset=None, folder=None):
+                          training_samples=200, pixels=16, nqubits=4, avg=1, dataset=None, folder=None):
     
     # number of qubits generator
     nqubits = nqubits
@@ -197,21 +261,34 @@ def build_and_train_model(lr_d=1e-2, lr=1e-2, n_epochs=10, batch_samples=10, lat
     # create classical discriminator
     discriminator = define_discriminator(n_inputs=pixels, lr=lr_d)
     # train model
-    return train(discriminator, latent_dim, layers, nqubits, training_samples, circuit, n_epochs, batch_samples, lr, lr_d, dataset, folder)
+    return train(discriminator, latent_dim, layers, nqubits, training_samples, circuit, n_epochs, batch_samples, lr, lr_d, avg, dataset, folder)
+
+def rebuild_image(img):
+
+    test = np.zeros(shape=(24,24))
+    masked =  np.ma.masked_array(test, mask=False)
+    masked.mask = generate_condition()
+    extracted = np.ma.compressed(masked)
+    extracted = img
+    masked[~masked.mask] = extracted.ravel()
+
+    return masked.data
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--latent_dim", default=3, type=int)
     parser.add_argument("--layers", default=3, type=int)
     parser.add_argument("--training_samples", default=1000, type=int)
-    parser.add_argument("--n_epochs", default=100, type=int)
+    parser.add_argument("--n_epochs", default=10, type=int)
     parser.add_argument("--batch_samples", default=64, type=int)
-    parser.add_argument("--pixels", default=784, type=int)
-    parser.add_argument("--nqubits", default=10, type=int)
+    parser.add_argument("--pixels", default=512, type=int)
+    parser.add_argument("--nqubits", default=9, type=int)
     parser.add_argument("--lr", default=5e-1, type=float)
     parser.add_argument("--lr_d", default=1e-2, type=float)
-    parser.add_argument("--dataset", default="MNIST", type=str)
+    parser.add_argument("--dataset", default="Lund", type=str)
     parser.add_argument("--folder", default=None, type=str)
+    parser.add_argument("--avg", default=1, type=int)
 
     args = vars(parser.parse_args())
     build_and_train_model(**args)
