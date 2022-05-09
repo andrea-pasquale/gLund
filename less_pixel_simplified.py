@@ -94,16 +94,20 @@ def set_params(circuit, params, x_input, i, nqubits, layers, latent_dim):
     noise = 0
     for l in range(layers):
         for q in range(nqubits):
-            p.append(params[index] * x_input[noise][i] + params[index+1])
-            index += 2
-            noise= (noise+1) % latent_dim
-            p.append(params[index] * x_input[noise][i] + params[index+1])
-            index += 2
-            noise = (noise+1) % latent_dim
+            if l == 0:
+                p.append(params[index] * x_input[noise][i] + params[index+1])
+                index += 2
+                noise= (noise+1) % latent_dim
+            else:
+                p.append(params[index])
+                index += 1
+            p.append(params[index])# * x_input[noise][i] + params[index+1])
+            index += 1
+            #noise = (noise+1) % latent_dim
     for q in range(nqubits):
-        p.append(params[index] * x_input[noise][i] + params[index+1])
-        index += 2
-        noise= (noise+1) % latent_dim
+        p.append(params[index])# * x_input[noise][i] + params[index+1])
+        index += 1
+        #noise= (noise+1) % latent_dim
     circuit.set_parameters(p)
 
 def generate_training_real_samples(dataset, samples, avg=1):
@@ -207,7 +211,7 @@ def train(d_model, latent_dim, layers, nqubits, training_samples, circuit, n_epo
     g_loss = []
     # determine half the size of one batch, for updating the discriminator
     half_samples = int(samples / 2)
-    initial_params = tf.Variable(np.random.uniform(-0.15, 0.15, 4*layers*nqubits + 2*nqubits))
+    initial_params = tf.Variable(np.random.uniform(-0.15, 0.15, 3*nqubits+2*(layers-1)*nqubits + 2*nqubits))
     optimizer = tf.optimizers.Adadelta(learning_rate=lr)
     # prepare real samples
     s, pixels = generate_training_real_samples(dataset, training_samples, avg)
@@ -254,7 +258,7 @@ def build_and_train_model(lr_d=1e-2, lr=1e-2, n_epochs=10, batch_samples=10, lat
         for i in range(nqubits):
             circuit.add(gates.RY(i, 0))
         for i in range(1, nqubits - 2, 2):
-          circuit.add(gates.CZ(i, i + 1))
+            circuit.add(gates.CZ(i, i + 1))
         circuit.add(gates.CZ(0, nqubits - 1))
     for q in range(nqubits):
         circuit.add(gates.RY(q, 0))
@@ -281,13 +285,13 @@ if __name__ == "__main__":
     parser.add_argument("--layers", default=3, type=int)
     parser.add_argument("--training_samples", default=1000, type=int)
     parser.add_argument("--n_epochs", default=10, type=int)
-    parser.add_argument("--batch_samples", default=64, type=int)
+    parser.add_argument("--batch_samples", default=11, type=int)
     parser.add_argument("--pixels", default=512, type=int)
     parser.add_argument("--nqubits", default=9, type=int)
     parser.add_argument("--lr", default=5e-1, type=float)
     parser.add_argument("--lr_d", default=1e-2, type=float)
     parser.add_argument("--dataset", default="Lund", type=str)
-    parser.add_argument("--folder", default=None, type=str)
+    parser.add_argument("--folder", default="simulationLund", type=str)
     parser.add_argument("--avg", default=1, type=int)
 
     args = vars(parser.parse_args())
