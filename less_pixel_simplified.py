@@ -292,7 +292,7 @@ if __name__ == "__main__":
     parser.add_argument("--lr_d", default=1e-2, type=float)
     parser.add_argument("--dataset", default="Lund", type=str)
     parser.add_argument("--folder", default="simulationLund", type=str)
-    parser.add_argument("--avg", default=1, type=int)
+    parser.add_argument("--avg", default=32, type=int)
 
     args = vars(parser.parse_args())
     build_and_train_model(**args)
