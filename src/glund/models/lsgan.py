@@ -7,7 +7,7 @@ from keras.layers import Input, Dense, Lambda, merge, Flatten
 from keras.layers import BatchNormalization
 from keras.layers.advanced_activations import LeakyReLU
 from keras.models import Sequential, Model
-from keras.engine import InputSpec, Layer
+from tensorflow.keras.layers import InputSpec, Layer
 from keras import initializers, regularizers, constraints, activations
 import keras.backend as K
 

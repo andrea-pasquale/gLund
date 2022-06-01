@@ -3,7 +3,7 @@
 """This script allows for the generation of new samples from a trained model"""
 
 from glund.read_data import Jets
-from glund.JetTree import JetTree, LundImage, xval, yval
+from glund.JetTree import JetTree, LundImage
 from glund.preprocess import Averager
 from glund.model import load_model_and_preprocessor
 import numpy as np
@@ -20,6 +20,13 @@ def plot_events_debug(gen_sample, preproc, datafile, setup, folder):
         (img_data, _), (_, _) = mnist.load_data()
         # Rescale -1 to 1
         img_data = (img_data.astype(np.float32) - 127.5) / 127.5
+        img_data = np.expand_dims(img_data, axis=3)
+    elif datafile == 'digits':
+        print('[+] Loading sklearn data')
+        from sklearn.datasets import load_digits
+        img_data = load_digits(n_class=1).images
+        # Rescale -1 to 1
+        img_data = (img_data.astype(np.float32) - 8.) / 8.
         img_data = np.expand_dims(img_data, axis=3)
     else:
         reader=Jets(datafile, 5000)

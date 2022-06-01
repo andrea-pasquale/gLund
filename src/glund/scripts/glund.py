@@ -55,7 +55,7 @@ def build_and_train_model(setup):
     print('[+] Training model')
     K.clear_session()
     if setup['model'] not in ('gan', 'dcgan', 'wgan', 'wgangp', 'vae',
-                              'aae', 'bgan', 'lsgan'):
+                              'aae', 'bgan', 'lsgan', 'qgan'):
         raise ValueError('Invalid input: choose one model at a time.')
 
     # read in the data set
@@ -66,10 +66,17 @@ def build_and_train_model(setup):
         # mnist data and training the model on this.
         (img_data, _), (_, _) = mnist.load_data()
         # Rescale -1 to 1
-        if setup['model'] is not 'vae':
+        if setup['model'] != 'vae':
             img_data = (img_data.astype(np.float32) - 127.5) / 127.5
         else:
             img_data = img_data.astype('float32') / 255
+        img_data = np.expand_dims(img_data, axis=3)
+    elif setup['data'] == 'digits':
+        print('[+] Loading sklearn data')
+        from sklearn.datasets import load_digits
+        img_data = load_digits(n_class=1).images
+        # Rescale -1 to 1
+        img_data = (img_data.astype(np.float32) - 8.) / 8.
         img_data = np.expand_dims(img_data, axis=3)
     else:
         # load in the jets from file, and create an array of lund images
@@ -85,7 +92,7 @@ def build_and_train_model(setup):
 
     avg = Averager(setup['navg'])
     img_train = avg.transform(img_data)
-    
+
     # set up a preprocessing pipeline
     preprocess = build_preprocessor(setup)
     

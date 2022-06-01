@@ -1,0 +1,56 @@
+# data set on which to train, available options:
+# path to json contains jet events
+# mnist: uses the MNIST data set for testing
+data: digits
+
+# Number of events
+nev: -1 # -1 = all data
+
+# Select model, available options are:
+# gan, dcgan, wgan, wgangp, vae, aae, bgan, lsgan
+model: qgan
+
+# Number of epochs
+epochs: 10
+
+# Batch size
+batch_size: 32
+
+# Number of generated events
+ngen: 5000
+
+# Number of latent dimensions
+latdim: 3
+
+# Number of pixels
+npx: 8
+
+# scaler for preprocessing
+scaler: minmax
+
+# Perform PCA preprocessing
+pca: false
+
+# Perform ZCA preprocessing
+zca: false
+
+# Number of pixel average
+navg: 1
+
+# Optimizer parameters
+# options are: Adam, RMSprop, Adagrad, SGD
+optimizer: Adam
+learning_rate: 0.0002
+# opt_decay: 0.000000008 # => 8e-9
+
+# GAN architecture parameters
+nn_units_d: 256
+nn_units_g: 256
+nn_alpha_d: 0.2
+nn_alpha_g: 0.2
+nn_momentum: 0.8
+nn_dropout: 0.2
+
+
+nqubits: 6
+layers: 1

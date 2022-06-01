@@ -1,7 +1,7 @@
 # data set on which to train, available options:
 # path to json contains jet events
 # mnist: uses the MNIST data set for testing
-data: ../data/valid/valid_QCD_500GeV.json.gz
+data: digits
 
 # Number of events
 nev: -1 # -1 = all data
@@ -23,7 +23,7 @@ ngen: 5000
 latdim: 100
 
 # Number of pixels
-npx: 24
+npx: 8
 
 # scaler for preprocessing
 scaler: minmax
@@ -32,10 +32,10 @@ scaler: minmax
 pca: false
 
 # Perform ZCA preprocessing
-zca: true
+zca: false
 
 # Number of pixel average
-navg: 20
+navg: 1
 
 # Optimizer parameters
 # options are: Adam, RMSprop, Adagrad, SGD
